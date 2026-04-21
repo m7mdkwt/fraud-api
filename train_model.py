@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
+import joblib
 
 df = pd.read_csv("logs.csv")
 
@@ -33,4 +34,7 @@ for _, row in df.iterrows():
 model = DecisionTreeClassifier()
 model.fit(X, y)
 
-print("Model trained successfully 🚀")
+# 💾 حفظ الموديل
+joblib.dump(model, "model.pkl")
+
+print("Model saved as model.pkl 🚀")
