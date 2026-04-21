@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import random
+from model import predict_risk
 
 app = FastAPI()
 
@@ -9,38 +9,26 @@ class RequestData(BaseModel):
     device: str
     time: str
 
-@app.get("/")
-def home():
-    return {"message": "Fraud Detection API Running 🚀"}
+def score_ip(ip):
+    return 1 if not ip.startswith("192.168") else 0
+
+def score_device(device):
+    return 1 if "Windows" not in device else 0
+
+def score_time(time):
+    hour = int(time.split(":")[0])
+    return 1 if hour < 6 or hour > 23 else 0
 
 @app.post("/predict")
 def predict(data: RequestData):
-    risk = 0
 
-    # rule 1: IP مختلف
-    if not data.ip.startswith("192.168"):
-        risk += 40
+    ip_s = score_ip(data.ip)
+    dev_s = score_device(data.device)
+    time_s = score_time(data.time)
 
-    # rule 2: جهاز غريب
-    if "Windows" not in data.device:
-        risk += 20
-
-    # rule 3: وقت غريب
-    hour = int(data.time.split(":")[0])
-    if hour < 6 or hour > 23:
-        risk += 30
-
-    # simulate AI
-    risk += random.randint(0, 20)
-
-    if risk < 40:
-        status = "low"
-    elif risk < 70:
-        status = "medium"
-    else:
-        status = "high"
+    risk = predict_risk(ip_s, dev_s, time_s)
 
     return {
         "risk_score": risk,
-        "status": status
+        "status": "fraud" if risk == 1 else "safe"
     }
