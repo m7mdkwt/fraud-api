@@ -4,30 +4,46 @@ import joblib
 
 app = FastAPI()
 
-# تحميل الموديل
+# تحميل النموذج
 model = joblib.load("model.pkl")
 
+
+# --------- Health Check ----------
+@app.get("/")
+def home():
+    return {"message": "Fraud Detection API is running 🚀"}
+
+
+# --------- Request Schema ----------
 class RequestData(BaseModel):
     ip: str
     device: str
     time: str
 
-def encode_device(d):
-    return {
+
+# --------- Encoders ----------
+def encode_ip(ip):
+    # simple rule-based encoding
+    return 1 if not ip.startswith("192") else 0
+
+
+def encode_device(device):
+    mapping = {
         "Windows": 0,
         "Mac": 1,
         "Linux": 2,
         "Android": 3,
         "iPhone": 4
-    }.get(d, 0)
+    }
+    return mapping.get(device, 0)
 
-def encode_ip(ip):
-    return 1 if not ip.startswith("192") else 0
 
 def encode_time(t):
     hour = int(t.split(":")[0])
     return 1 if hour < 6 or hour > 23 else 0
 
+
+# --------- Prediction Endpoint ----------
 @app.post("/predict")
 def predict(data: RequestData):
 
