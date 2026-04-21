@@ -1,34 +1,45 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from model import predict_risk
+import joblib
 
 app = FastAPI()
+
+# تحميل الموديل
+model = joblib.load("model.pkl")
 
 class RequestData(BaseModel):
     ip: str
     device: str
     time: str
 
-def score_ip(ip):
-    return 1 if not ip.startswith("192.168") else 0
+def encode_device(d):
+    return {
+        "Windows": 0,
+        "Mac": 1,
+        "Linux": 2,
+        "Android": 3,
+        "iPhone": 4
+    }.get(d, 0)
 
-def score_device(device):
-    return 1 if "Windows" not in device else 0
+def encode_ip(ip):
+    return 1 if not ip.startswith("192") else 0
 
-def score_time(time):
-    hour = int(time.split(":")[0])
+def encode_time(t):
+    hour = int(t.split(":")[0])
     return 1 if hour < 6 or hour > 23 else 0
 
 @app.post("/predict")
 def predict(data: RequestData):
 
-    ip_s = score_ip(data.ip)
-    dev_s = score_device(data.device)
-    time_s = score_time(data.time)
+    X = [[
+        encode_ip(data.ip),
+        encode_device(data.device),
+        encode_time(data.time)
+    ]]
 
-    risk = predict_risk(ip_s, dev_s, time_s)
+    result = model.predict(X)[0]
 
     return {
-        "risk_score": risk,
-        "status": "fraud" if risk == 1 else "safe"
+        "risk_score": int(result),
+        "status": "fraud" if result == 1 else "safe"
     }
