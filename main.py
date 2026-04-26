@@ -1,24 +1,37 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
+import requests
 
 app = FastAPI()
 
-# تحميل الموديل
 model = joblib.load("model.pkl")
 
 
-# -------- Health Check --------
-@app.get("/")
-def home():
-    return {"message": "Fraud Detection API is running 🚀"}
-
-
-# -------- Request Schema --------
+# -------- Request --------
 class RequestData(BaseModel):
     ip: str
     device: str
-    time: str   # نرسل فقط الساعة (H)
+    time: str
+
+
+# -------- GeoIP --------
+def get_geo(ip):
+    try:
+        url = f"http://ip-api.com/json/{ip}"
+        res = requests.get(url).json()
+
+        return {
+            "country": res.get("country", "Unknown"),
+            "region": res.get("regionName", "Unknown"),
+            "city": res.get("city", "Unknown")
+        }
+    except:
+        return {
+            "country": "Unknown",
+            "region": "Unknown",
+            "city": "Unknown"
+        }
 
 
 # -------- Encoding --------
@@ -31,16 +44,12 @@ def encode_device(device):
 
     if "windows" in device:
         return 0
-    elif "mac" in device:
-        return 1
-    elif "linux" in device:
-        return 2
-    elif "android" in device:
-        return 3
     elif "iphone" in device:
-        return 4
+        return 1
+    elif "android" in device:
+        return 2
     else:
-        return 5
+        return 3
 
 
 def encode_time(hour):
@@ -54,20 +63,33 @@ def predict(data: RequestData):
 
     risk = 0
 
-    # 🧠 Rule 1: IP داخلي = آمن
-    if data.ip.startswith("192"):
-        risk -= 1
+    # 🧠 GeoIP
+    geo = get_geo(data.ip)
+    country = geo["country"]
+    region = geo["region"]
 
-    # 🧠 Rule 2: وقت مشبوه (ليل)
+    # 🟢 Allow rules
+    if country == "Kuwait":
+        risk -= 2
+
+    elif country == "United States":
+        if "Florida" in region or "New York" in region:
+            risk -= 1
+        else:
+            risk += 2
+    else:
+        risk += 2
+
+    # 🧠 Time rule
     hour = int(data.time)
     if hour < 5:
         risk += 1
 
-    # 🧠 Rule 3: جهاز طبيعي
+    # 🧠 Device rule
     if "windows" in data.device.lower() or "iphone" in data.device.lower():
         risk -= 1
 
-    # 🤖 AI Prediction
+    # 🤖 AI
     X = [[
         encode_ip(data.ip),
         encode_device(data.device),
@@ -75,10 +97,9 @@ def predict(data: RequestData):
     ]]
 
     model_result = model.predict(X)[0]
-
     risk += int(model_result)
 
-    # 🎯 القرار النهائي
+    # 🎯 Final decision
     if risk <= 0:
         status = "safe"
     elif risk == 1:
@@ -87,6 +108,8 @@ def predict(data: RequestData):
         status = "fraud"
 
     return {
+        "status": status,
         "risk_score": int(risk),
-        "status": status
+        "country": country,
+        "region": region
     }
