@@ -132,13 +132,11 @@ def predict(data: RequestData):
 
     # 🔐 Trusted IPs (أولوية قصوى)
     trusted_ips = load_trusted()
-    if data.ip in trusted_ips and country == "Kuwait":
-        return {
-            "status": "safe",
-            "risk_score": -5,
-            "country": country,
-            "region": region
-        }
+   # 🔐 Smart Trusted IP
+trusted_ips = load_trusted()
+
+if data.ip in trusted_ips:
+    risk -= 3
 
     # 🌍 الدولة
     if country == "Kuwait":
