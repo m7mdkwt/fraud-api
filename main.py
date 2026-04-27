@@ -130,23 +130,21 @@ def predict(data: RequestData):
     country = geo["country"]
     region = geo["region"]
 
-    # 🔐 Trusted IPs (أولوية قصوى)
+    # 🔐 Smart Trusted IP
     trusted_ips = load_trusted()
-   # 🔐 Smart Trusted IP
-trusted_ips = load_trusted()
+    if data.ip in trusted_ips:
+        risk -= 3
 
-if data.ip in trusted_ips:
-    risk -= 3
-
-    # 🌍 الدولة
+    # 🌍 الدول المسموحة (Whitelist Countries)
     if country == "Kuwait":
         risk -= 2
 
     elif country == "United States":
         if "Florida" in region or "New York" in region:
-            risk -= 1
+            risk -= 2   # نخليها نفس قوة الكويت
         else:
-            risk += 2
+            risk += 2   # باقي أمريكا مشبوهة
+
     else:
         risk += 2
 
