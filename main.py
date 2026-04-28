@@ -10,8 +10,9 @@ app = FastAPI()
 # تحميل الموديل
 model = joblib.load("model.pkl")
 
-# ملف تخزين IPs
+# ملفات التخزين
 TRUSTED_FILE = "trusted_ips.json"
+COUNTRIES_FILE = "allowed_countries.json"
 
 
 # -------- Load / Save Trusted IPs --------
@@ -24,6 +25,19 @@ def load_trusted():
 
 def save_trusted(data):
     with open(TRUSTED_FILE, "w") as f:
+        json.dump(data, f)
+
+
+# -------- Load / Save Countries --------
+def load_countries():
+    if not os.path.exists(COUNTRIES_FILE):
+        return ["Kuwait", "United States"]  # default
+    with open(COUNTRIES_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_countries(data):
+    with open(COUNTRIES_FILE, "w") as f:
         json.dump(data, f)
 
 
@@ -76,36 +90,31 @@ def encode_time(hour):
     return 1 if hour < 6 else 0
 
 
-# -------- Health Check --------
+# -------- Health --------
 @app.get("/")
 def home():
     return {"message": "Fraud Detection API is running 🚀"}
 
 
-# -------- Add Trusted IP --------
-@app.post("/add-ip")
-def add_ip(data: dict):
-    ip = data.get("ip")
-
-    if not ip:
-        return {"error": "IP is required"}
-
-    trusted = load_trusted()
-
-    if ip not in trusted:
-        trusted.append(ip)
-        save_trusted(trusted)
-
-    return {"message": "IP added", "trusted_ips": trusted}
-
-
-# -------- Get Trusted IPs --------
+# -------- Trusted IP APIs --------
 @app.get("/ips")
 def get_ips():
     return load_trusted()
 
 
-# -------- Delete Trusted IP --------
+@app.post("/add-ip")
+def add_ip(data: dict):
+    ip = data.get("ip")
+
+    trusted = load_trusted()
+
+    if ip and ip not in trusted:
+        trusted.append(ip)
+        save_trusted(trusted)
+
+    return {"trusted_ips": trusted}
+
+
 @app.post("/delete-ip")
 def delete_ip(data: dict):
     ip = data.get("ip")
@@ -116,7 +125,39 @@ def delete_ip(data: dict):
         trusted.remove(ip)
         save_trusted(trusted)
 
-    return {"message": "IP removed", "trusted_ips": trusted}
+    return {"trusted_ips": trusted}
+
+
+# -------- Countries APIs --------
+@app.get("/countries")
+def get_countries():
+    return load_countries()
+
+
+@app.post("/add-country")
+def add_country(data: dict):
+    country = data.get("country")
+
+    countries = load_countries()
+
+    if country and country not in countries:
+        countries.append(country)
+        save_countries(countries)
+
+    return {"countries": countries}
+
+
+@app.post("/delete-country")
+def delete_country(data: dict):
+    country = data.get("country")
+
+    countries = load_countries()
+
+    if country in countries:
+        countries.remove(country)
+        save_countries(countries)
+
+    return {"countries": countries}
 
 
 # -------- Prediction --------
@@ -125,35 +166,37 @@ def predict(data: RequestData):
 
     risk = 0
 
-    # 🧠 GeoIP
+    # 🌍 Geo
     geo = get_geo(data.ip)
     country = geo["country"]
     region = geo["region"]
 
-   # 🔐 Smart Trusted IP (ذكي حسب الدولة)
-trusted_ips = load_trusted()
+    # 🔐 Trusted IP (Smart)
+    trusted_ips = load_trusted()
+    if data.ip in trusted_ips:
+        if country == "Kuwait":
+            risk -= 3
+        elif country == "United States":
+            risk -= 2
+        else:
+            risk -= 1
 
-if data.ip in trusted_ips:
-    if country == "Kuwait":
-        risk -= 3
-    elif country == "United States" and ("Florida" in region or "New York" in region):
+    # 🌍 Allowed Countries
+    allowed_countries = load_countries()
+
+    if country in allowed_countries:
         risk -= 2
     else:
-        risk -= 1  # ثقة ضعيفة لباقي الدول
+        risk += 2
 
-# 🌍 Allowed الدول الموثوقة (Whitelist)
-if country == "Kuwait" or country == "United States":
-    risk -= 2
-else:
-    risk += 2
-
-    # 🕒 الوقت
+    # 🕒 Time
     hour = int(data.time)
     if hour < 5:
         risk += 2
 
-    # 💻 الجهاز
-    if "windows" in data.device.lower() or "iphone" in data.device.lower():
+    # 💻 Device
+    device_lower = data.device.lower()
+    if "windows" in device_lower or "iphone" in device_lower:
         risk -= 1
 
     # 🤖 AI Model
@@ -166,7 +209,7 @@ else:
     model_result = model.predict(X)[0]
     risk += int(model_result)
 
-    # 🎯 القرار النهائي
+    # 🎯 Final Decision
     if risk <= 0:
         status = "safe"
     elif risk == 1:
