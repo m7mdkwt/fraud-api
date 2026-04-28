@@ -141,16 +141,9 @@ if data.ip in trusted_ips:
     else:
         risk -= 1  # ثقة ضعيفة لباقي الدول
 
-# 🌍 الدول المسموحة
-if country == "Kuwait":
+# 🌍 Allowed الدول الموثوقة (Whitelist)
+if country == "Kuwait" or country == "United States":
     risk -= 2
-
-elif country == "United States":
-    if "Florida" in region or "New York" in region:
-        risk -= 2
-    else:
-        risk += 2
-
 else:
     risk += 2
 
