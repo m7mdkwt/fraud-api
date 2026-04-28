@@ -13,58 +13,67 @@ model = joblib.load("model.pkl")
 # ملفات التخزين
 TRUSTED_FILE = "trusted_ips.json"
 COUNTRIES_FILE = "allowed_countries.json"
+BLOCKED_FILE = "blocked_countries.json"
 
 
-# -------- Load / Save Trusted IPs --------
-def load_trusted():
-    if not os.path.exists(TRUSTED_FILE):
-        return []
-    with open(TRUSTED_FILE, "r") as f:
+# -------- Load / Save --------
+def load_json(file, default):
+    if not os.path.exists(file):
+        return default
+    with open(file, "r") as f:
         return json.load(f)
+
+
+def save_json(file, data):
+    with open(file, "w") as f:
+        json.dump(data, f)
+
+
+# -------- Trusted --------
+def load_trusted():
+    return load_json(TRUSTED_FILE, [])
 
 
 def save_trusted(data):
-    with open(TRUSTED_FILE, "w") as f:
-        json.dump(data, f)
+    save_json(TRUSTED_FILE, data)
 
 
-# -------- Load / Save Countries --------
+# -------- Allowed Countries --------
 def load_countries():
-    if not os.path.exists(COUNTRIES_FILE):
-        return ["Kuwait", "United States"]  # default
-    with open(COUNTRIES_FILE, "r") as f:
-        return json.load(f)
+    return load_json(COUNTRIES_FILE, ["Kuwait", "United States"])
 
 
 def save_countries(data):
-    with open(COUNTRIES_FILE, "w") as f:
-        json.dump(data, f)
+    save_json(COUNTRIES_FILE, data)
 
 
-# -------- Request Schema --------
+# -------- Blocked Countries --------
+def load_blocked():
+    return load_json(BLOCKED_FILE, [])
+
+
+def save_blocked(data):
+    save_json(BLOCKED_FILE, data)
+
+
+# -------- Request --------
 class RequestData(BaseModel):
     ip: str
     device: str
     time: str
 
 
-# -------- GeoIP --------
+# -------- Geo --------
 def get_geo(ip):
     try:
-        url = f"http://ip-api.com/json/{ip}"
-        res = requests.get(url, timeout=3).json()
-
+        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=3).json()
         return {
             "country": res.get("country", "Unknown"),
             "region": res.get("regionName", "Unknown"),
             "city": res.get("city", "Unknown")
         }
     except:
-        return {
-            "country": "Unknown",
-            "region": "Unknown",
-            "city": "Unknown"
-        }
+        return {"country": "Unknown", "region": "Unknown", "city": "Unknown"}
 
 
 # -------- Encoding --------
@@ -73,27 +82,24 @@ def encode_ip(ip):
 
 
 def encode_device(device):
-    device = device.lower()
-
-    if "windows" in device:
+    d = device.lower()
+    if "windows" in d:
         return 0
-    elif "iphone" in device:
+    elif "iphone" in d:
         return 1
-    elif "android" in device:
+    elif "android" in d:
         return 2
-    else:
-        return 3
+    return 3
 
 
 def encode_time(hour):
-    hour = int(hour)
-    return 1 if hour < 6 else 0
+    return 1 if int(hour) < 6 else 0
 
 
 # -------- Health --------
 @app.get("/")
 def home():
-    return {"message": "Fraud Detection API is running 🚀"}
+    return {"message": "Fraud API Running 🚀"}
 
 
 # -------- Trusted IP APIs --------
@@ -104,31 +110,29 @@ def get_ips():
 
 @app.post("/add-ip")
 def add_ip(data: dict):
+    ips = load_trusted()
     ip = data.get("ip")
 
-    trusted = load_trusted()
+    if ip and ip not in ips:
+        ips.append(ip)
+        save_trusted(ips)
 
-    if ip and ip not in trusted:
-        trusted.append(ip)
-        save_trusted(trusted)
-
-    return {"trusted_ips": trusted}
+    return {"trusted_ips": ips}
 
 
 @app.post("/delete-ip")
 def delete_ip(data: dict):
+    ips = load_trusted()
     ip = data.get("ip")
 
-    trusted = load_trusted()
+    if ip in ips:
+        ips.remove(ip)
+        save_trusted(ips)
 
-    if ip in trusted:
-        trusted.remove(ip)
-        save_trusted(trusted)
-
-    return {"trusted_ips": trusted}
+    return {"trusted_ips": ips}
 
 
-# -------- Countries APIs --------
+# -------- Allowed Countries APIs --------
 @app.get("/countries")
 def get_countries():
     return load_countries()
@@ -136,12 +140,11 @@ def get_countries():
 
 @app.post("/add-country")
 def add_country(data: dict):
-    country = data.get("country")
-
     countries = load_countries()
+    c = data.get("country")
 
-    if country and country not in countries:
-        countries.append(country)
+    if c and c not in countries:
+        countries.append(c)
         save_countries(countries)
 
     return {"countries": countries}
@@ -149,15 +152,44 @@ def add_country(data: dict):
 
 @app.post("/delete-country")
 def delete_country(data: dict):
-    country = data.get("country")
-
     countries = load_countries()
+    c = data.get("country")
 
-    if country in countries:
-        countries.remove(country)
+    if c in countries:
+        countries.remove(c)
         save_countries(countries)
 
     return {"countries": countries}
+
+
+# -------- Blocked Countries APIs --------
+@app.get("/blocked-countries")
+def get_blocked():
+    return load_blocked()
+
+
+@app.post("/add-block")
+def add_block(data: dict):
+    blocked = load_blocked()
+    c = data.get("country")
+
+    if c and c not in blocked:
+        blocked.append(c)
+        save_blocked(blocked)
+
+    return {"blocked": blocked}
+
+
+@app.post("/delete-block")
+def delete_block(data: dict):
+    blocked = load_blocked()
+    c = data.get("country")
+
+    if c in blocked:
+        blocked.remove(c)
+        save_blocked(blocked)
+
+    return {"blocked": blocked}
 
 
 # -------- Prediction --------
@@ -171,9 +203,19 @@ def predict(data: RequestData):
     country = geo["country"]
     region = geo["region"]
 
-    # 🔐 Trusted IP (Smart)
-    trusted_ips = load_trusted()
-    if data.ip in trusted_ips:
+    # 🚫 BLOCK CHECK (أهم شيء)
+    blocked = load_blocked()
+    if country in blocked:
+        return {
+            "status": "blocked",
+            "risk_score": 999,
+            "country": country,
+            "region": region
+        }
+
+    # 🔐 Trusted IP
+    trusted = load_trusted()
+    if data.ip in trusted:
         if country == "Kuwait":
             risk -= 3
         elif country == "United States":
@@ -182,34 +224,30 @@ def predict(data: RequestData):
             risk -= 1
 
     # 🌍 Allowed Countries
-    allowed_countries = load_countries()
-
-    if country in allowed_countries:
+    allowed = load_countries()
+    if country in allowed:
         risk -= 2
     else:
         risk += 2
 
     # 🕒 Time
-    hour = int(data.time)
-    if hour < 5:
+    if int(data.time) < 5:
         risk += 2
 
     # 💻 Device
-    device_lower = data.device.lower()
-    if "windows" in device_lower or "iphone" in device_lower:
+    if "windows" in data.device.lower() or "iphone" in data.device.lower():
         risk -= 1
 
-    # 🤖 AI Model
+    # 🤖 AI
     X = [[
         encode_ip(data.ip),
         encode_device(data.device),
         encode_time(data.time)
     ]]
 
-    model_result = model.predict(X)[0]
-    risk += int(model_result)
+    risk += int(model.predict(X)[0])
 
-    # 🎯 Final Decision
+    # 🎯 Decision
     if risk <= 0:
         status = "safe"
     elif risk == 1:
