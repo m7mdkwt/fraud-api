@@ -5,13 +5,20 @@ import requests
 
 app = FastAPI()
 
-# 🔥 DATABASE (SSL داخل الرابط)
-DATABASE_URL = "postgresql://postgres:11223344mmddmM%40%40@db.nuocuctzsidctyohecep.supabase.co:5432/postgres?sslmode=require"
+# 🔥 DATABASE (SSL REQUIRED)
+DATABASE_CONFIG = {
+    "host": "db.nuocuctzsidctyohecep.supabase.co",
+    "port": 5432,
+    "database": "postgres",
+    "user": "postgres",
+    "password": "11223344mmddmM@@",
+    "sslmode": "require"
+}
 
 
 # -------- DB --------
 def get_db():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(**DATABASE_CONFIG)
 
 
 def safe_close(cur=None, db=None):
@@ -40,9 +47,6 @@ def home():
 # =========================
 # 🔐 Trusted IPs
 # =========================
-# =========================
-# 🔐 Trusted IPs
-# =========================
 
 @app.get("/ips")
 def get_ips():
@@ -51,13 +55,10 @@ def get_ips():
     try:
         db = get_db()
         cur = db.cursor()
-
         cur.execute("SELECT ip FROM trusted_ips")
         return [row[0] for row in cur.fetchall()]
-
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -83,7 +84,6 @@ def add_ip(data: dict):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -103,7 +103,6 @@ def delete_ip(data: dict):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -119,13 +118,10 @@ def get_countries():
     try:
         db = get_db()
         cur = db.cursor()
-
         cur.execute("SELECT country FROM allowed_countries")
         return [row[0] for row in cur.fetchall()]
-
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -151,7 +147,6 @@ def add_country(data: dict):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -171,7 +166,6 @@ def delete_country(data: dict):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -187,13 +181,10 @@ def get_blocked():
     try:
         db = get_db()
         cur = db.cursor()
-
         cur.execute("SELECT country FROM blocked_countries")
         return [row[0] for row in cur.fetchall()]
-
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -219,7 +210,6 @@ def add_block(data: dict):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
 
@@ -239,12 +229,14 @@ def delete_block(data: dict):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
     finally:
         safe_close(cur, db)
+
+
 # =========================
 # 🔍 Prediction
 # =========================
+
 @app.post("/predict")
 def predict(data: RequestData):
 
@@ -257,7 +249,6 @@ def predict(data: RequestData):
     country = geo.get("country", "Unknown")
     region = geo.get("regionName", "Unknown")
 
-    # 🔥 DB fetch مباشر
     cur = None
     db = None
 
@@ -280,11 +271,11 @@ def predict(data: RequestData):
     finally:
         safe_close(cur, db)
 
-    # 🚫 Block logic
+    # 🚫 Block
     if country in blocked:
         return {"status": "blocked", "country": country}
 
-    # 🌍 Allow logic
+    # 🌍 Allow
     if country in allowed:
         status = "safe"
     else:
