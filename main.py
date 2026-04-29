@@ -5,21 +5,24 @@ import requests
 
 app = FastAPI()
 
-# 🔥 Supabase Pooler (IPv4) - تأكد من القيم
+# 🔥 DATABASE (تأكد من USER الصحيح من Supabase)
 DATABASE_CONFIG = {
     "host": "aws-0-us-east-1.pooler.supabase.com",
     "port": 6543,
-    "database": "postgres",
-    "user": "postgres.nuocuctzsidctyohecep",  # مهم: postgres.<PROJECT_ID>
+    "dbname": "postgres",
+    "user": "postgres.nuocuctzsidctyohecep",  # ⚠️ تأكد من هذا من Supabase
     "password": "11223344mmddmM@@",
-    "sslmode": "require",
-    "connect_timeout": 10,
+    "sslmode": "require"
 }
 
 # -------- DB --------
 def get_db():
-    # لا تستخدم أي connect بدون config
-    return psycopg2.connect(**DATABASE_CONFIG)
+    try:
+        return psycopg2.connect(**DATABASE_CONFIG)
+    except Exception as e:
+        print("🔥 DB CONNECTION ERROR:", e)
+        raise e
+
 
 def safe_close(cur=None, db=None):
     try:
@@ -30,16 +33,19 @@ def safe_close(cur=None, db=None):
     except:
         pass
 
-# -------- Request Schema --------
+
+# -------- Request --------
 class RequestData(BaseModel):
     ip: str
     device: str
     time: str
 
-# -------- Health --------
+
+# -------- Home --------
 @app.get("/")
 def home():
     return {"message": "API Running 🚀"}
+
 
 # =========================
 # 🔐 Trusted IPs
@@ -58,6 +64,7 @@ def get_ips():
         return {"status": "error", "message": str(e)}
     finally:
         safe_close(cur, db)
+
 
 @app.post("/add-ip")
 def add_ip(data: dict):
@@ -83,6 +90,7 @@ def add_ip(data: dict):
     finally:
         safe_close(cur, db)
 
+
 @app.post("/delete-ip")
 def delete_ip(data: dict):
     cur = None
@@ -101,6 +109,7 @@ def delete_ip(data: dict):
     finally:
         safe_close(cur, db)
 
+
 # =========================
 # 🌍 Allowed Countries
 # =========================
@@ -118,6 +127,7 @@ def get_countries():
         return {"status": "error", "message": str(e)}
     finally:
         safe_close(cur, db)
+
 
 @app.post("/add-country")
 def add_country(data: dict):
@@ -143,6 +153,7 @@ def add_country(data: dict):
     finally:
         safe_close(cur, db)
 
+
 @app.post("/delete-country")
 def delete_country(data: dict):
     cur = None
@@ -161,6 +172,7 @@ def delete_country(data: dict):
     finally:
         safe_close(cur, db)
 
+
 # =========================
 # 🚫 Blocked Countries
 # =========================
@@ -178,6 +190,7 @@ def get_blocked():
         return {"status": "error", "message": str(e)}
     finally:
         safe_close(cur, db)
+
 
 @app.post("/add-block")
 def add_block(data: dict):
@@ -203,6 +216,7 @@ def add_block(data: dict):
     finally:
         safe_close(cur, db)
 
+
 @app.post("/delete-block")
 def delete_block(data: dict):
     cur = None
@@ -221,13 +235,14 @@ def delete_block(data: dict):
     finally:
         safe_close(cur, db)
 
+
 # =========================
 # 🔍 Prediction
 # =========================
 
 @app.post("/predict")
 def predict(data: RequestData):
-    # 🌍 GeoIP
+
     try:
         geo = requests.get(f"http://ip-api.com/json/{data.ip}", timeout=3).json()
     except:
