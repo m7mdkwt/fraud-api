@@ -7,10 +7,10 @@ app = FastAPI()
 
 # 🔥 DATABASE (تأكد من USER الصحيح من Supabase)
 DATABASE_CONFIG = {
-    "host": "aws-0-us-east-1.pooler.supabase.com",
+    "host": "aws-1-ap-northeast-2.pooler.supabase.com",  # 🔥 صح
     "port": 6543,
     "dbname": "postgres",
-    "user": "postgres.nuocuctzsidctyohecep",  # ⚠️ تأكد من هذا من Supabase
+    "user": "postgres.nuocuctzsidctyohecep",
     "password": "11223344mmddmM@@",
     "sslmode": "require"
 }
