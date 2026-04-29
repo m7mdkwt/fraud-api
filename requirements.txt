@@ -1,9 +1,11 @@
 fastapi
-uvicorn
-scikit-learn
-numpy
-joblib
+uvicorn[standard]
 pydantic
 requests
 psycopg2-binary
 python-dotenv
+
+# optional (لو فعلاً تستخدم AI)
+scikit-learn
+numpy
+joblib
