@@ -6,7 +6,7 @@ import requests
 app = FastAPI()
 
 # 🔥 DB
-DATABASE_URL = "postgresql://postgres:11223344mmddmM@@@db.nuocuctzsidctyohecep.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql://postgres:11223344mmddmM%40%40@db.nuocuctzsidctyohecep.supabase.co:5432/postgres"
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
