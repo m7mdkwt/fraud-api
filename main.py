@@ -5,16 +5,19 @@ import requests
 
 app = FastAPI()
 
-# 🔥 DATABASE (fixed encoding)
+# 🔥 DATABASE (مع SSL)
 DATABASE_URL = "postgresql://postgres:11223344mmddmM%40%40@db.nuocuctzsidctyohecep.supabase.co:5432/postgres"
 
 
 # -------- DB --------
 def get_db():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(
+        DATABASE_URL,
+        sslmode="require"  # 🔥 مهم جداً
+    )
 
 
-def safe_close(cur, db):
+def safe_close(cur=None, db=None):
     try:
         if cur:
             cur.close()
@@ -45,8 +48,10 @@ def get_ips():
     try:
         db = get_db()
         cur = db.cursor()
+
         cur.execute("SELECT ip FROM trusted_ips")
         data = [row[0] for row in cur.fetchall()]
+
         return data
 
     except Exception as e:
@@ -71,7 +76,7 @@ def add_ip(data: dict):
         if cur.rowcount == 0:
             return {"status": "exists", "message": "IP already exists"}
 
-        return {"status": "success", "message": "IP added successfully"}
+        return {"status": "success", "message": "IP added"}
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -106,8 +111,10 @@ def get_countries():
     try:
         db = get_db()
         cur = db.cursor()
+
         cur.execute("SELECT country FROM allowed_countries")
         data = [row[0] for row in cur.fetchall()]
+
         return data
 
     except Exception as e:
@@ -167,8 +174,10 @@ def get_blocked():
     try:
         db = get_db()
         cur = db.cursor()
+
         cur.execute("SELECT country FROM blocked_countries")
         data = [row[0] for row in cur.fetchall()]
+
         return data
 
     except Exception as e:
@@ -191,7 +200,7 @@ def add_block(data: dict):
         db.commit()
 
         if cur.rowcount == 0:
-            return {"status": "exists", "message": "Country already blocked"}
+            return {"status": "exists", "message": "Already blocked"}
 
         return {"status": "success", "message": "Country blocked"}
 
