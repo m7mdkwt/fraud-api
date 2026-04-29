@@ -248,6 +248,7 @@ def delete_block(data: dict):
 @app.post("/predict")
 def predict(data: RequestData):
 
+    # 🌍 Geo
     try:
         geo = requests.get(f"http://ip-api.com/json/{data.ip}", timeout=3).json()
     except:
@@ -256,13 +257,35 @@ def predict(data: RequestData):
     country = geo.get("country", "Unknown")
     region = geo.get("regionName", "Unknown")
 
-    blocked = get_blocked()
-    allowed = get_countries()
+    # 🔥 DB fetch مباشر
+    cur = None
+    db = None
 
-    if isinstance(blocked, list) and country in blocked:
+    try:
+        db = get_db()
+        cur = db.cursor()
+
+        # 🚫 blocked
+        cur.execute("SELECT country FROM blocked_countries")
+        blocked = [row[0] for row in cur.fetchall()]
+
+        # 🌍 allowed
+        cur.execute("SELECT country FROM allowed_countries")
+        allowed = [row[0] for row in cur.fetchall()]
+
+    except:
+        blocked = []
+        allowed = []
+
+    finally:
+        safe_close(cur, db)
+
+    # 🚫 Block logic
+    if country in blocked:
         return {"status": "blocked", "country": country}
 
-    if isinstance(allowed, list) and country in allowed:
+    # 🌍 Allow logic
+    if country in allowed:
         status = "safe"
     else:
         status = "fraud"
