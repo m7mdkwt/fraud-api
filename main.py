@@ -40,16 +40,20 @@ def home():
 # =========================
 # 🔐 Trusted IPs
 # =========================
+# =========================
+# 🔐 Trusted IPs
+# =========================
+
 @app.get("/ips")
 def get_ips():
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
 
         cur.execute("SELECT ip FROM trusted_ips")
-        data = [row[0] for row in cur.fetchall()]
-
-        return data
+        return [row[0] for row in cur.fetchall()]
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -60,6 +64,8 @@ def get_ips():
 
 @app.post("/add-ip")
 def add_ip(data: dict):
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
@@ -84,6 +90,8 @@ def add_ip(data: dict):
 
 @app.post("/delete-ip")
 def delete_ip(data: dict):
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
@@ -103,16 +111,17 @@ def delete_ip(data: dict):
 # =========================
 # 🌍 Allowed Countries
 # =========================
+
 @app.get("/countries")
 def get_countries():
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
 
         cur.execute("SELECT country FROM allowed_countries")
-        data = [row[0] for row in cur.fetchall()]
-
-        return data
+        return [row[0] for row in cur.fetchall()]
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -123,6 +132,8 @@ def get_countries():
 
 @app.post("/add-country")
 def add_country(data: dict):
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
@@ -147,6 +158,8 @@ def add_country(data: dict):
 
 @app.post("/delete-country")
 def delete_country(data: dict):
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
@@ -166,16 +179,17 @@ def delete_country(data: dict):
 # =========================
 # 🚫 Blocked Countries
 # =========================
+
 @app.get("/blocked-countries")
 def get_blocked():
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
 
         cur.execute("SELECT country FROM blocked_countries")
-        data = [row[0] for row in cur.fetchall()]
-
-        return data
+        return [row[0] for row in cur.fetchall()]
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -186,6 +200,8 @@ def get_blocked():
 
 @app.post("/add-block")
 def add_block(data: dict):
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
@@ -210,6 +226,8 @@ def add_block(data: dict):
 
 @app.post("/delete-block")
 def delete_block(data: dict):
+    cur = None
+    db = None
     try:
         db = get_db()
         cur = db.cursor()
@@ -224,8 +242,6 @@ def delete_block(data: dict):
 
     finally:
         safe_close(cur, db)
-
-
 # =========================
 # 🔍 Prediction
 # =========================
