@@ -5,4 +5,5 @@ numpy
 joblib
 pydantic
 requests
-pymysql
+psycopg2-binary
+python-dotenv
