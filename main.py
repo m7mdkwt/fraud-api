@@ -5,21 +5,21 @@ import requests
 
 app = FastAPI()
 
-# 🔥 DATABASE (Supabase Pooler - IPv4)
+# 🔥 Supabase Pooler (IPv4) - تأكد من القيم
 DATABASE_CONFIG = {
     "host": "aws-0-us-east-1.pooler.supabase.com",
     "port": 6543,
-    "dbname": "postgres",  # 🔥 هنا التعديل
-    "user": "postgres.nuocuctzsidctyohecep",
+    "database": "postgres",
+    "user": "postgres.nuocuctzsidctyohecep",  # مهم: postgres.<PROJECT_ID>
     "password": "11223344mmddmM@@",
-    "sslmode": "require"
+    "sslmode": "require",
+    "connect_timeout": 10,
 }
-
 
 # -------- DB --------
 def get_db():
+    # لا تستخدم أي connect بدون config
     return psycopg2.connect(**DATABASE_CONFIG)
-
 
 def safe_close(cur=None, db=None):
     try:
@@ -30,19 +30,16 @@ def safe_close(cur=None, db=None):
     except:
         pass
 
-
-# -------- Request --------
+# -------- Request Schema --------
 class RequestData(BaseModel):
     ip: str
     device: str
     time: str
 
-
-# -------- Home --------
+# -------- Health --------
 @app.get("/")
 def home():
     return {"message": "API Running 🚀"}
-
 
 # =========================
 # 🔐 Trusted IPs
@@ -62,7 +59,6 @@ def get_ips():
     finally:
         safe_close(cur, db)
 
-
 @app.post("/add-ip")
 def add_ip(data: dict):
     cur = None
@@ -73,7 +69,7 @@ def add_ip(data: dict):
 
         cur.execute(
             "INSERT INTO trusted_ips (ip) VALUES (%s) ON CONFLICT (ip) DO NOTHING",
-            (data["ip"],)
+            (data.get("ip"),)
         )
         db.commit()
 
@@ -87,7 +83,6 @@ def add_ip(data: dict):
     finally:
         safe_close(cur, db)
 
-
 @app.post("/delete-ip")
 def delete_ip(data: dict):
     cur = None
@@ -96,7 +91,7 @@ def delete_ip(data: dict):
         db = get_db()
         cur = db.cursor()
 
-        cur.execute("DELETE FROM trusted_ips WHERE ip=%s", (data["ip"],))
+        cur.execute("DELETE FROM trusted_ips WHERE ip=%s", (data.get("ip"),))
         db.commit()
 
         return {"status": "success", "message": "IP deleted"}
@@ -105,7 +100,6 @@ def delete_ip(data: dict):
         return {"status": "error", "message": str(e)}
     finally:
         safe_close(cur, db)
-
 
 # =========================
 # 🌍 Allowed Countries
@@ -125,7 +119,6 @@ def get_countries():
     finally:
         safe_close(cur, db)
 
-
 @app.post("/add-country")
 def add_country(data: dict):
     cur = None
@@ -136,7 +129,7 @@ def add_country(data: dict):
 
         cur.execute(
             "INSERT INTO allowed_countries (country) VALUES (%s) ON CONFLICT (country) DO NOTHING",
-            (data["country"],)
+            (data.get("country"),)
         )
         db.commit()
 
@@ -150,7 +143,6 @@ def add_country(data: dict):
     finally:
         safe_close(cur, db)
 
-
 @app.post("/delete-country")
 def delete_country(data: dict):
     cur = None
@@ -159,7 +151,7 @@ def delete_country(data: dict):
         db = get_db()
         cur = db.cursor()
 
-        cur.execute("DELETE FROM allowed_countries WHERE country=%s", (data["country"],))
+        cur.execute("DELETE FROM allowed_countries WHERE country=%s", (data.get("country"),))
         db.commit()
 
         return {"status": "success", "message": "Country removed"}
@@ -168,7 +160,6 @@ def delete_country(data: dict):
         return {"status": "error", "message": str(e)}
     finally:
         safe_close(cur, db)
-
 
 # =========================
 # 🚫 Blocked Countries
@@ -188,7 +179,6 @@ def get_blocked():
     finally:
         safe_close(cur, db)
 
-
 @app.post("/add-block")
 def add_block(data: dict):
     cur = None
@@ -199,7 +189,7 @@ def add_block(data: dict):
 
         cur.execute(
             "INSERT INTO blocked_countries (country) VALUES (%s) ON CONFLICT (country) DO NOTHING",
-            (data["country"],)
+            (data.get("country"),)
         )
         db.commit()
 
@@ -213,7 +203,6 @@ def add_block(data: dict):
     finally:
         safe_close(cur, db)
 
-
 @app.post("/delete-block")
 def delete_block(data: dict):
     cur = None
@@ -222,7 +211,7 @@ def delete_block(data: dict):
         db = get_db()
         cur = db.cursor()
 
-        cur.execute("DELETE FROM blocked_countries WHERE country=%s", (data["country"],))
+        cur.execute("DELETE FROM blocked_countries WHERE country=%s", (data.get("country"),))
         db.commit()
 
         return {"status": "success", "message": "Block removed"}
@@ -232,14 +221,12 @@ def delete_block(data: dict):
     finally:
         safe_close(cur, db)
 
-
 # =========================
 # 🔍 Prediction
 # =========================
 
 @app.post("/predict")
 def predict(data: RequestData):
-
     # 🌍 GeoIP
     try:
         geo = requests.get(f"http://ip-api.com/json/{data.ip}", timeout=3).json()
@@ -251,33 +238,28 @@ def predict(data: RequestData):
 
     cur = None
     db = None
+    blocked = []
+    allowed = []
 
     try:
         db = get_db()
         cur = db.cursor()
 
-        # 🚫 blocked
         cur.execute("SELECT country FROM blocked_countries")
         blocked = [row[0] for row in cur.fetchall()]
 
-        # 🌍 allowed
         cur.execute("SELECT country FROM allowed_countries")
         allowed = [row[0] for row in cur.fetchall()]
 
     except:
-        blocked = []
-        allowed = []
-
+        pass
     finally:
         safe_close(cur, db)
 
     if country in blocked:
         return {"status": "blocked", "country": country}
 
-    if country in allowed:
-        status = "safe"
-    else:
-        status = "fraud"
+    status = "safe" if country in allowed else "fraud"
 
     return {
         "status": status,
