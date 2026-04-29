@@ -6,14 +6,15 @@ import requests
 app = FastAPI()
 
 # 🔥 DATABASE (Supabase Pooler - IPv4 FIX)
-DATABASE_CONFIG = {
-    "host": "aws-0-us-east-1.pooler.supabase.com",  # 🔥 مهم
-    "port": 6543,
-    "database": "postgres",
-    "user": "postgres",
-    "password": "11223344mmddmM@@",
-    "sslmode": "require"
-}
+def get_db():
+    return psycopg2.connect(
+        host="aws-0-us-east-1.pooler.supabase.com",
+        port=6543,
+        database="postgres",
+        user="postgres",
+        password="11223344mmddmM@@",
+        sslmode="require"
+    )
 
 
 # -------- DB --------
