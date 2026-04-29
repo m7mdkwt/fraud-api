@@ -1,23 +1,15 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import psycopg2
-import joblib
 import requests
-import os
 
 app = FastAPI()
 
-# 🔥 DATABASE URL (ضع الباسورد)
+# 🔥 DB
 DATABASE_URL = "postgresql://postgres:11223344mmddmM@@@db.nuocuctzsidctyohecep.supabase.co:5432/postgres"
 
-# تحميل الموديل
-model = joblib.load("model.pkl")
-
-
-# -------- DB --------
 def get_db():
     return psycopg2.connect(DATABASE_URL)
-
 
 # -------- Request --------
 class RequestData(BaseModel):
@@ -25,31 +17,23 @@ class RequestData(BaseModel):
     device: str
     time: str
 
-
-# -------- Geo --------
-def get_geo(ip):
-    try:
-        res = requests.get(f"http://ip-api.com/json/{ip}", timeout=3).json()
-        return {
-            "country": res.get("country", "Unknown"),
-            "region": res.get("regionName", "Unknown")
-        }
-    except:
-        return {"country": "Unknown", "region": "Unknown"}
-
+# -------- Home --------
+@app.get("/")
+def home():
+    return {"message": "API Running 🚀"}
 
 # =========================
 # 🔐 Trusted IP
 # =========================
-def load_trusted():
+@app.get("/ips")
+def get_ips():
     db = get_db()
     cur = db.cursor()
     cur.execute("SELECT ip FROM trusted_ips")
-    data = cur.fetchall()
+    data = [row[0] for row in cur.fetchall()]
     cur.close()
     db.close()
-    return [x[0] for x in data]
-
+    return data
 
 @app.post("/add-ip")
 def add_ip(data: dict):
@@ -61,7 +45,6 @@ def add_ip(data: dict):
     db.close()
     return {"msg": "added"}
 
-
 @app.post("/delete-ip")
 def delete_ip(data: dict):
     db = get_db()
@@ -72,29 +55,71 @@ def delete_ip(data: dict):
     db.close()
     return {"msg": "deleted"}
 
-
 # =========================
 # 🌍 Countries
 # =========================
-def load_countries():
+@app.get("/countries")
+def get_countries():
     db = get_db()
     cur = db.cursor()
     cur.execute("SELECT country FROM allowed_countries")
-    data = cur.fetchall()
+    data = [row[0] for row in cur.fetchall()]
     cur.close()
     db.close()
-    return [x[0] for x in data]
+    return data
 
+@app.post("/add-country")
+def add_country(data: dict):
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("INSERT INTO allowed_countries (country) VALUES (%s) ON CONFLICT DO NOTHING", (data["country"],))
+    db.commit()
+    cur.close()
+    db.close()
+    return {"msg": "added"}
 
-def load_blocked():
+@app.post("/delete-country")
+def delete_country(data: dict):
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("DELETE FROM allowed_countries WHERE country=%s", (data["country"],))
+    db.commit()
+    cur.close()
+    db.close()
+    return {"msg": "deleted"}
+
+# =========================
+# 🚫 Blocked Countries
+# =========================
+@app.get("/blocked-countries")
+def get_blocked():
     db = get_db()
     cur = db.cursor()
     cur.execute("SELECT country FROM blocked_countries")
-    data = cur.fetchall()
+    data = [row[0] for row in cur.fetchall()]
     cur.close()
     db.close()
-    return [x[0] for x in data]
+    return data
 
+@app.post("/add-block")
+def add_block(data: dict):
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("INSERT INTO blocked_countries (country) VALUES (%s) ON CONFLICT DO NOTHING", (data["country"],))
+    db.commit()
+    cur.close()
+    db.close()
+    return {"msg": "added"}
+
+@app.post("/delete-block")
+def delete_block(data: dict):
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("DELETE FROM blocked_countries WHERE country=%s", (data["country"],))
+    db.commit()
+    cur.close()
+    db.close()
+    return {"msg": "deleted"}
 
 # =========================
 # 🔍 Prediction
@@ -102,47 +127,20 @@ def load_blocked():
 @app.post("/predict")
 def predict(data: RequestData):
 
-    risk = 0
-
-    geo = get_geo(data.ip)
-    country = geo["country"]
-    region = geo["region"]
+    geo = requests.get(f"http://ip-api.com/json/{data.ip}").json()
+    country = geo.get("country", "Unknown")
+    region = geo.get("regionName", "Unknown")
 
     # 🚫 Block
-    if country in load_blocked():
-        return {
-            "status": "blocked",
-            "country": country,
-            "region": region
-        }
-
-    # 🔐 Trusted
-    if data.ip in load_trusted():
-        risk -= 3
+    blocked = get_blocked()
+    if country in blocked:
+        return {"status": "blocked", "country": country}
 
     # 🌍 Allowed
-    if country in load_countries():
-        risk -= 2
-    else:
-        risk += 2
+    allowed = get_countries()
 
-    # 🕒 Time
-    if int(data.time) < 5:
-        risk += 2
-
-    # 💻 Device
-    if "windows" in data.device.lower() or "iphone" in data.device.lower():
-        risk -= 1
-
-    # 🤖 AI
-    X = [[1, 1, 1]]
-    risk += int(model.predict(X)[0])
-
-    # 🎯 Result
-    if risk <= 0:
+    if country in allowed:
         status = "safe"
-    elif risk == 1:
-        status = "medium"
     else:
         status = "fraud"
 
