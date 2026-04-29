@@ -5,16 +5,13 @@ import requests
 
 app = FastAPI()
 
-# 🔥 DATABASE (مع SSL)
-DATABASE_URL = "postgresql://postgres:11223344mmddmM%40%40@db.nuocuctzsidctyohecep.supabase.co:5432/postgres"
+# 🔥 DATABASE (SSL داخل الرابط)
+DATABASE_URL = "postgresql://postgres:11223344mmddmM%40%40@db.nuocuctzsidctyohecep.supabase.co:5432/postgres?sslmode=require"
 
 
 # -------- DB --------
 def get_db():
-    return psycopg2.connect(
-        DATABASE_URL,
-        sslmode="require"  # 🔥 مهم جداً
-    )
+    return psycopg2.connect(DATABASE_URL)
 
 
 def safe_close(cur=None, db=None):
