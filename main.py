@@ -7,13 +7,15 @@ app = FastAPI()
 
 # 🔥 DATABASE (SSL REQUIRED)
 DATABASE_CONFIG = {
-    "host": "db.nuocuctzsidctyohecep.supabase.co",
-    "port": 5432,
-    "database": "postgres",
-    "user": "postgres",
-    "password": "11223344mmddmM@@",
-    "sslmode": "require"
-}
+    def get_db():
+    return psycopg2.connect(
+        dbname="postgres",
+        user="postgres",
+        password="11223344mmddmM@@",
+        host="aws-0-us-east-1.pooler.supabase.com",
+        port=6543,
+        sslmode="require"
+    )
 
 
 # -------- DB --------
