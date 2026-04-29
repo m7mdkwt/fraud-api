@@ -5,11 +5,11 @@ import requests
 
 app = FastAPI()
 
-# 🔥 DATABASE (تم اصلاح @@)
+# 🔥 DATABASE (fixed encoding)
 DATABASE_URL = "postgresql://postgres:11223344mmddmM%40%40@db.nuocuctzsidctyohecep.supabase.co:5432/postgres"
 
 
-# -------- DB Helper --------
+# -------- DB --------
 def get_db():
     return psycopg2.connect(DATABASE_URL)
 
@@ -38,7 +38,7 @@ def home():
 
 
 # =========================
-# 🔐 Trusted IP
+# 🔐 Trusted IPs
 # =========================
 @app.get("/ips")
 def get_ips():
@@ -62,7 +62,10 @@ def add_ip(data: dict):
         db = get_db()
         cur = db.cursor()
 
-        cur.execute("INSERT INTO trusted_ips (ip) VALUES (%s) ON CONFLICT DO NOTHING", (data["ip"],))
+        cur.execute(
+            "INSERT INTO trusted_ips (ip) VALUES (%s) ON CONFLICT (ip) DO NOTHING",
+            (data["ip"],)
+        )
         db.commit()
 
         if cur.rowcount == 0:
@@ -120,7 +123,10 @@ def add_country(data: dict):
         db = get_db()
         cur = db.cursor()
 
-        cur.execute("INSERT INTO allowed_countries (country) VALUES (%s) ON CONFLICT DO NOTHING", (data["country"],))
+        cur.execute(
+            "INSERT INTO allowed_countries (country) VALUES (%s) ON CONFLICT (country) DO NOTHING",
+            (data["country"],)
+        )
         db.commit()
 
         if cur.rowcount == 0:
@@ -178,7 +184,10 @@ def add_block(data: dict):
         db = get_db()
         cur = db.cursor()
 
-        cur.execute("INSERT INTO blocked_countries (country) VALUES (%s) ON CONFLICT DO NOTHING", (data["country"],))
+        cur.execute(
+            "INSERT INTO blocked_countries (country) VALUES (%s) ON CONFLICT (country) DO NOTHING",
+            (data["country"],)
+        )
         db.commit()
 
         if cur.rowcount == 0:
