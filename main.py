@@ -2,58 +2,22 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
 import requests
-import json
-import os
+import pymysql
 
 app = FastAPI()
 
 # تحميل الموديل
 model = joblib.load("model.pkl")
 
-# ملفات التخزين
-TRUSTED_FILE = "trusted_ips.json"
-COUNTRIES_FILE = "allowed_countries.json"
-BLOCKED_FILE = "blocked_countries.json"
-
-
-# -------- Load / Save --------
-def load_json(file, default):
-    if not os.path.exists(file):
-        return default
-    with open(file, "r") as f:
-        return json.load(f)
-
-
-def save_json(file, data):
-    with open(file, "w") as f:
-        json.dump(data, f)
-
-
-# -------- Trusted --------
-def load_trusted():
-    return load_json(TRUSTED_FILE, [])
-
-
-def save_trusted(data):
-    save_json(TRUSTED_FILE, data)
-
-
-# -------- Allowed Countries --------
-def load_countries():
-    return load_json(COUNTRIES_FILE, ["Kuwait", "United States"])
-
-
-def save_countries(data):
-    save_json(COUNTRIES_FILE, data)
-
-
-# -------- Blocked Countries --------
-def load_blocked():
-    return load_json(BLOCKED_FILE, [])
-
-
-def save_blocked(data):
-    save_json(BLOCKED_FILE, data)
+# -------- MySQL Connection --------
+def get_db():
+    return pymysql.connect(
+        host="localhost",
+        user="me",
+        password="11223344mmddmM@@m",
+        database="detect_db",
+        cursorclass=pymysql.cursors.DictCursor
+    )
 
 
 # -------- Request --------
@@ -102,7 +66,16 @@ def home():
     return {"message": "Fraud API Running 🚀"}
 
 
-# -------- Trusted IP APIs --------
+# =========================
+# 🔐 Trusted IP
+# =========================
+def load_trusted():
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("SELECT ip FROM trusted_ips")
+        return [row["ip"] for row in cur.fetchall()]
+
+
 @app.get("/ips")
 def get_ips():
     return load_trusted()
@@ -110,29 +83,32 @@ def get_ips():
 
 @app.post("/add-ip")
 def add_ip(data: dict):
-    ips = load_trusted()
-    ip = data.get("ip")
-
-    if ip and ip not in ips:
-        ips.append(ip)
-        save_trusted(ips)
-
-    return {"trusted_ips": ips}
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("INSERT IGNORE INTO trusted_ips (ip) VALUES (%s)", (data.get("ip"),))
+        db.commit()
+    return {"message": "IP added"}
 
 
 @app.post("/delete-ip")
 def delete_ip(data: dict):
-    ips = load_trusted()
-    ip = data.get("ip")
-
-    if ip in ips:
-        ips.remove(ip)
-        save_trusted(ips)
-
-    return {"trusted_ips": ips}
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM trusted_ips WHERE ip=%s", (data.get("ip"),))
+        db.commit()
+    return {"message": "IP removed"}
 
 
-# -------- Allowed Countries APIs --------
+# =========================
+# 🌍 Allowed Countries
+# =========================
+def load_countries():
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("SELECT country FROM allowed_countries")
+        return [row["country"] for row in cur.fetchall()]
+
+
 @app.get("/countries")
 def get_countries():
     return load_countries()
@@ -140,29 +116,32 @@ def get_countries():
 
 @app.post("/add-country")
 def add_country(data: dict):
-    countries = load_countries()
-    c = data.get("country")
-
-    if c and c not in countries:
-        countries.append(c)
-        save_countries(countries)
-
-    return {"countries": countries}
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("INSERT IGNORE INTO allowed_countries (country) VALUES (%s)", (data.get("country"),))
+        db.commit()
+    return {"message": "Country added"}
 
 
 @app.post("/delete-country")
 def delete_country(data: dict):
-    countries = load_countries()
-    c = data.get("country")
-
-    if c in countries:
-        countries.remove(c)
-        save_countries(countries)
-
-    return {"countries": countries}
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM allowed_countries WHERE country=%s", (data.get("country"),))
+        db.commit()
+    return {"message": "Country removed"}
 
 
-# -------- Blocked Countries APIs --------
+# =========================
+# 🚫 Blocked Countries
+# =========================
+def load_blocked():
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("SELECT country FROM blocked_countries")
+        return [row["country"] for row in cur.fetchall()]
+
+
 @app.get("/blocked-countries")
 def get_blocked():
     return load_blocked()
@@ -170,40 +149,35 @@ def get_blocked():
 
 @app.post("/add-block")
 def add_block(data: dict):
-    blocked = load_blocked()
-    c = data.get("country")
-
-    if c and c not in blocked:
-        blocked.append(c)
-        save_blocked(blocked)
-
-    return {"blocked": blocked}
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("INSERT IGNORE INTO blocked_countries (country) VALUES (%s)", (data.get("country"),))
+        db.commit()
+    return {"message": "Blocked added"}
 
 
 @app.post("/delete-block")
 def delete_block(data: dict):
-    blocked = load_blocked()
-    c = data.get("country")
-
-    if c in blocked:
-        blocked.remove(c)
-        save_blocked(blocked)
-
-    return {"blocked": blocked}
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM blocked_countries WHERE country=%s", (data.get("country"),))
+        db.commit()
+    return {"message": "Blocked removed"}
 
 
-# -------- Prediction --------
+# =========================
+# 🔍 Prediction
+# =========================
 @app.post("/predict")
 def predict(data: RequestData):
 
     risk = 0
 
-    # 🌍 Geo
     geo = get_geo(data.ip)
     country = geo["country"]
     region = geo["region"]
 
-    # 🚫 BLOCK CHECK (أهم شيء)
+    # 🚫 Block Check
     blocked = load_blocked()
     if country in blocked:
         return {
@@ -213,7 +187,7 @@ def predict(data: RequestData):
             "region": region
         }
 
-    # 🔐 Trusted IP
+    # 🔐 Trusted
     trusted = load_trusted()
     if data.ip in trusted:
         if country == "Kuwait":
@@ -223,7 +197,7 @@ def predict(data: RequestData):
         else:
             risk -= 1
 
-    # 🌍 Allowed Countries
+    # 🌍 Allowed
     allowed = load_countries()
     if country in allowed:
         risk -= 2
