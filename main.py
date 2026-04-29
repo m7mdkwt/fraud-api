@@ -5,17 +5,15 @@ import requests
 
 app = FastAPI()
 
-# 🔥 DATABASE (SSL REQUIRED)
+# 🔥 DATABASE (Supabase Pooler - IPv4 FIX)
 DATABASE_CONFIG = {
-    def get_db():
-    return psycopg2.connect(
-        dbname="postgres",
-        user="postgres",
-        password="11223344mmddmM@@",
-        host="aws-0-us-east-1.pooler.supabase.com",
-        port=6543,
-        sslmode="require"
-    )
+    "host": "aws-0-us-east-1.pooler.supabase.com",  # 🔥 مهم
+    "port": 6543,
+    "database": "postgres",
+    "user": "postgres",
+    "password": "11223344mmddmM@@",
+    "sslmode": "require"
+}
 
 
 # -------- DB --------
@@ -273,11 +271,9 @@ def predict(data: RequestData):
     finally:
         safe_close(cur, db)
 
-    # 🚫 Block
     if country in blocked:
         return {"status": "blocked", "country": country}
 
-    # 🌍 Allow
     if country in allowed:
         status = "safe"
     else:
